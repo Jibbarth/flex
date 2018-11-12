@@ -12,7 +12,9 @@
 namespace Symfony\Flex;
 
 use Composer\Cache as BaseCache;
+use Composer\Factory;
 use Composer\IO\IOInterface;
+use Composer\Json\JsonFile;
 use Composer\Semver\Constraint\Constraint;
 use Composer\Semver\VersionParser;
 
@@ -25,6 +27,7 @@ class Cache extends BaseCache
     private $symfonyRequire;
     private $symfonyConstraints;
     private $io;
+    private $config;
 
     public function setSymfonyRequire(string $symfonyRequire, IOInterface $io = null)
     {
@@ -32,6 +35,10 @@ class Cache extends BaseCache
         $this->symfonyRequire = $symfonyRequire;
         $this->symfonyConstraints = $this->versionParser->parseConstraints($symfonyRequire);
         $this->io = $io;
+
+        $json = new JsonFile(Factory::getComposerFile());
+        $contents = file_get_contents($json->getPath());
+        $this->config = json_decode($contents, true);
     }
 
     public function read($file)
@@ -87,6 +94,13 @@ class Cache extends BaseCache
             $devMaster = $versions['dev-master'];
             $versions = array_intersect_key($versions, $symfonySymfony);
 
+            foreach (['require', 'require-dev'] as $type) {
+                foreach ($this->config[$type] ?? [] as $package => $version) {
+                    if ($package === $name && '*' !== $version ) {
+                        continue 3;
+                    }
+                }
+            }
             if ($this->symfonyConstraints->matches(new Constraint('==', $this->versionParser->normalize($devMasterAlias)))) {
                 $versions['dev-master'] = $devMaster;
             }
